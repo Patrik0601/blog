@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8" />
+  <title>Blog posztok</title>
+  <style>
+    :root {
+        --primary: #4a90e2;
+        --secondary: #f5f9ff;
+        --accent: #eaf2ff;
+        --text: #333;
+        --muted: #777;
+        --success: #28a745;
+        --danger: #dc3545;
+    }
+
+    body {
+        font-family: 'Segoe UI', sans-serif;
+        background-color: var(--secondary);
+        color: var(--text);
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    h1, h2 {
+        color: var(--primary);
+    }
+
+    input, textarea, select {
+        width: 100%;
+        padding: 10px;
+        margin: 5px 0 15px 0;
+        border: 1px solid #ccc;
+        border-radius: 6px;
+        font-size: 1rem;
+        background-color: #fff;
+    }
+
+    textarea {
+        resize: vertical;
+    }
+
+    button {
+        padding: 10px 16px;
+        margin-right: 10px;
+        font-size: 1rem;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: background 0.3s ease;
+    }
+
+    button:hover {
+        opacity: 0.9;
+    }
+
+    button:not(.danger):not(.secondary) {
+        background-color: var(--primary);
+        color: white;
+    }
+
+    button.danger {
+        background-color: var(--danger);
+        color: white;
+    }
+
+    button.secondary {
+        background-color: #ccc;
+        color: #333;
+    }
+
+    .post {
+        background-color: white;
+        padding: 20px;
+        margin-bottom: 25px;
+        border-radius: 10px;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+        position: relative;
+    }
+
+    .post h3 {
+        margin-top: 0;
+        color: var(--primary);
+    }
+
+    .post-meta {
+        font-size: 0.9rem;
+        color: var(--muted);
+        margin-bottom: 10px;
+    }
+
+    .edit-form-inline {
+        background-color: var(--accent);
+        border-left: 4px solid var(--primary);
+        padding: 15px;
+        margin-top: 15px;
+        border-radius: 6px;
+    }
+
+    label {
+        font-weight: 500;
+        display: block;
+        margin-bottom: 5px;
+    }
+
+    hr {
+        border: none;
+        border-top: 1px solid #ddd;
+        margin: 25px 0;
+    }
+  </style>
+
+
+</head>
+<body>
+  <h1>Blog posztok</h1>
+
+  <div id="posts"></div>
+
+  <form id="postForm">
+  <h2>Új poszt létrehozása</h2>
+  <label for="title">Cím:</label><br />
+  <input type="text" id="title" /><br /><br />
+
+  <label for="category">Kategória:</label><br />
+  <input type="text" id="category" /><br /><br />
+
+  <label for="content">Tartalom:</label><br />
+  <textarea id="content" rows="5" cols="30"></textarea><br /><br />
+
+  <label for="author">Szerző:</label><br />
+  <select id="author"></select><br /><br />
+
+  <!-- Rejtett mező, ha módosítás történik -->
+  <input type="hidden" id="postId" />
+
+  <button type="submit">Mentés</button>
+</form>
+
+<div id="edit-form" style="display: none; margin-top: 30px; border-top: 1px solid #ccc; padding-top: 20px;">
+  <h2>Poszt módosítása</h2>
+  <label>Cím: <input type="text" id="edit-title" /></label><br />
+  <label>Kategória: <input type="text" id="edit-category" /></label><br />
+  <label>Tartalom:<br />
+    <textarea id="edit-content"></textarea>
+  </label><br />
+  <label>Szerző:
+    <select id="edit-author"></select>
+  </label><br />
+  <button onclick="saveEdit()">Mentés</button>
+  <button onclick="cancelEdit()">Mégse</button>
+</div>
+
+<script>
+  async function loadUsers() {
+    const res = await fetch('http://localhost:8080/users');
+    const users = await res.json();
+    const select = document.getElementById('author');
+    select.innerHTML = '';
+    users.forEach(user => {
+    const option = document.createElement('option');
+    option.value = user.id;
+    option.textContent = user.author;
+    document.getElementById('author').appendChild(option);
+
+    const editOption = document.createElement('option');
+    editOption.value = user.id;
+    editOption.textContent = user.author;
+    document.getElementById('edit-author').appendChild(editOption);
+    });
+  }
+
+    async function loadPosts() {
+    const res = await fetch('http://localhost:8080/posts');
+    const posts = await res.json();
+    const container = document.getElementById('posts');
+    container.innerHTML = '';
+    posts.forEach(p => {
+        const div = document.createElement('div');
+        div.innerHTML = `
+            <h3>${p.title}</h3>
+            <p><strong>${p.author_name}</strong> (${p.category})</p>
+            <p>${p.content}</p>
+            <p><em>Létrehozva:</em> ${new Date(p.created_at).toLocaleString()}</p>
+            <p><em>Utoljára módosítva:</em> ${new Date(p.updated_at).toLocaleString()}</p>
+            <button onclick="deletePost(${p.id})">Törlés</button>
+            <button onclick="editPost(${p.id})">Módosítás</button>
+            <hr />`;
+            container.appendChild(div);
+        });
+    }  
+
+    let editingPostId = null;
+
+    async function editPost(id) {
+    const res = await fetch(`http://localhost:8080/posts/${id}`);
+    const post = await res.json();
+
+    document.getElementById('edit-title').value = post.title;
+    document.getElementById('edit-category').value = post.category;
+    document.getElementById('edit-content').value = post.content;
+    document.getElementById('edit-author').value = post.author_id;
+
+    editingPostId = id;
+    document.getElementById('edit-form').style.display = 'block';
+    }
+
+    async function saveEdit() {
+    const updatedPost = {
+        title: document.getElementById('edit-title').value,
+        category: document.getElementById('edit-category').value,
+        content: document.getElementById('edit-content').value,
+        author_id: document.getElementById('edit-author').value,
+    };
+
+    await fetch(`http://localhost:8080/posts/${editingPostId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedPost),
+    });
+
+    document.getElementById('edit-form').style.display = 'none';
+    loadPosts();
+    }
+
+    function cancelEdit() {
+    document.getElementById('edit-form').style.display = 'none';
+    }
+
+  async function deletePost(id) {
+    await fetch(`http://localhost:8080/posts/${id}`, { method: 'DELETE' });
+    loadPosts();
+  }
+
+  async function submitForm(event) {
+    event.preventDefault();
+    const id = document.getElementById('postId').value;
+    const data = {
+      title: document.getElementById('title').value,
+      category: document.getElementById('category').value,
+      content: document.getElementById('content').value,
+      author_id: document.getElementById('author').value
+    };
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `http://localhost:8080/posts/${id}` : 'http://localhost:8080/posts';
+
+    await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+
+    document.getElementById('postForm').reset();
+    document.getElementById('postId').value = '';
+    loadPosts();
+  }
+
+  document.getElementById('postForm').addEventListener('submit', submitForm);
+
+  window.onload = () => {
+    loadUsers();
+    loadPosts();
+  };
+</script>
+</body>
+</html>
